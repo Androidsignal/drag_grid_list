@@ -9,6 +9,12 @@ required from the consumer.
 
 Requires Flutter >= 1.17, Dart >= 3.13.
 
+## Demo
+
+| List | Grid |
+| --- | --- |
+| ![list demo](screenshots/demo-list.gif) | ![grid demo](screenshots/demo-grid.gif) |
+
 ## Install
 
 ```yaml
@@ -189,5 +195,5 @@ data (`example/lib/main.dart`, `example/lib/demo_data.dart`).
   callbacks; you own the source-of-truth list mutation.
 
 ## Bugs & Credits
-Report bugs and ask questions on [GitHub Issues](https://github.com/dashstack/drag_grid_list/issues).
+Report bugs and ask questions on [GitHub Issues](https://github.com/Androidsignal/drag_grid_list/issues).
 Maintained by [Dashstack Infotech, Surat](https://www.dashstack.tech/).
