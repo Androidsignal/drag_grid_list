@@ -1,0 +1,20 @@
+name: drag_grid_list
+description: "Reorderable list + responsive grid with drag & drop, reordering, and cross-group drag between multiple lists/grids. Long-press drag on mobile, mouse drag on desktop/web."
+version: 0.0.1
+homepage: https://github.com/dashstack/drag_grid_list
+repository: https://github.com/dashstack/drag_grid_list
+
+environment:
+  sdk: ^3.13.0
+  flutter: ">=1.17.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
