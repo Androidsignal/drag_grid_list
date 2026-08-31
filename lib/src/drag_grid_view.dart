@@ -624,7 +624,22 @@ class _DragGridListState<T> extends State<DragGridList<T>>
               _controller!.clearHover();
             }
           },
-          onAcceptWithDetails: (details) => _handleDrop(details.data, index),
+          onAcceptWithDetails: (details) {
+            // Dropping directly onto a slot means "land in that slot's
+            // spot." For a downward same-list move that raw target needs
+            // to be one past the hovered slot: adjustReorderIndex/
+            // applyReorder (mirroring ReorderableListView's contract)
+            // subtract one to account for the shift caused by removing
+            // the dragged item first. Without the +1 here, every downward
+            // drop lands one slot short — and dropping on the very next
+            // neighbor resolves to a no-op, snapping the item back.
+            final data = details.data;
+            final sameGroup = data.groupId == widget.groupId;
+            final targetIndex = sameGroup && data.sourceIndex < index
+                ? index + 1
+                : index;
+            _handleDrop(data, targetIndex);
+          },
           builder: (context, candidateData, rejectedData) {
             // draggableChild must be a direct Stack child, not wrapped by
             // AnimatedContainer/AnimatedBuilder — nesting the live
