@@ -1,3 +1,12 @@
+## 0.0.2
+
+* Fix: dropping an item onto its immediate next neighbor was a no-op —
+  the drag snapped back to its original position instead of swapping.
+  Every downward same-list drop landed one slot short of where it was
+  dropped; only the adjacent case happened to land back on the source
+  index. `DragGridList`'s per-slot drop target now passes the raw index
+  `ReorderableListView`-style reorder math expects.
+
 ## 0.0.1
 
 Initial release.
