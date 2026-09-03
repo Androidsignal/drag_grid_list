@@ -30,12 +30,13 @@ class ExampleHome extends StatefulWidget {
 class _ExampleHomeState extends State<ExampleHome> {
   List<DemoCard> _listItems = generateDemoCards(10);
   List<DemoCard> _gridItems = generateDemoCards(20);
+  List<DemoCard> _masonryItems = generateDemoCards(16);
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         backgroundColor: colorScheme.surfaceContainerLowest,
         appBar: AppBar(
@@ -44,6 +45,7 @@ class _ExampleHomeState extends State<ExampleHome> {
             tabs: [
               Tab(icon: Icon(Icons.view_list), text: 'List'),
               Tab(icon: Icon(Icons.grid_view), text: 'Grid'),
+              Tab(icon: Icon(Icons.dashboard_customize), text: 'Masonry'),
             ],
           ),
         ),
@@ -75,6 +77,18 @@ class _ExampleHomeState extends State<ExampleHome> {
                     longPressDelay: const Duration(milliseconds: 150),
                     onItemsChanged: (items) => setState(() => _gridItems = items),
                     itemBuilder: (context, card, index) => _GridTile(card: card),
+                  ),
+                  DragGridList<DemoCard>.builder(
+                    items: _masonryItems,
+                    layout: DragListLayout.masonry,
+                    keyOf: (card) => ValueKey(card.id),
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+                    minColumnWidth: 140,
+                    itemSpacing: 10,
+                    rowSpacing: 10,
+                    longPressDelay: const Duration(milliseconds: 150),
+                    onItemsChanged: (items) => setState(() => _masonryItems = items),
+                    itemBuilder: (context, card, index) => _MasonryTile(card: card, index: index),
                   ),
                 ],
               ),
@@ -132,6 +146,70 @@ class _ListTile extends StatelessWidget {
         title: Text(card.title, style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Text(card.id),
         trailing: Icon(Icons.drag_handle, color: Theme.of(context).colorScheme.outline),
+      ),
+    );
+  }
+}
+
+class _MasonryTile extends StatelessWidget {
+  const _MasonryTile({required this.card, required this.index});
+
+  final DemoCard card;
+  final int index;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      elevation: 1,
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      child: Ink(
+        height: demoMasonryHeight(card),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [card.color, card.color.withValues(alpha: 0.7)],
+          ),
+        ),
+        child: Stack(
+          children: [
+            // Scrim so the title/subtitle stay legible over any card color,
+            // regardless of how tall this particular tile ended up.
+            const Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 56,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Colors.black38],
+                  ),
+                ),
+              ),
+            ),
+            const Positioned(top: 6, right: 6, child: Icon(Icons.open_with, size: 16, color: Colors.white70)),
+            Positioned(
+              left: 12,
+              right: 12,
+              bottom: 10,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    card.title,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                  Text(card.id, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

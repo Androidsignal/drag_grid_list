@@ -32,3 +32,12 @@ List<DemoCard> generateDemoCards(int count, {String prefix = 'Card'}) {
     ),
   );
 }
+
+/// Deterministic varying tile height, so the masonry demo actually staggers
+/// instead of laying out as an even grid.
+///
+/// Keyed by the card's own id, not its current list position — a card's
+/// height must stay put across a reorder, otherwise unrelated cards
+/// visibly resize every time *any* card is dragged.
+double demoMasonryHeight(DemoCard card) =>
+    90.0 + (card.id.hashCode.abs() * 47) % 140;

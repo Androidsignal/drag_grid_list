@@ -11,9 +11,9 @@ Requires Flutter >= 1.17, Dart >= 3.13.
 
 ## Demo
 
-| List | Grid |
-| --- | --- |
-| ![list demo](screenshots/demo-list.gif) | ![grid demo](screenshots/demo-grid.gif) |
+| List | Grid | Masonry |
+| --- | --- | --- |
+| ![list demo](screenshots/demo-list.gif) | ![grid demo](screenshots/demo-grid.gif) | ![masonry demo](screenshots/demo-masonry.gif) |
 
 ## Install
 
@@ -71,17 +71,40 @@ Grid mode picks a column count from the viewport width every layout pass —
 either an auto-fit derived from `minColumnWidth` (clamped to
 `minColumns`/`maxColumns`), or explicit tiers via `breakpoints:`.
 
+## Quick start — masonry
+
+```dart
+DragGridList<Photo>.builder(
+  items: photos,
+  keyOf: (photo) => ValueKey(photo.id),
+  layout: DragListLayout.masonry,
+  minColumnWidth: 140,   // same column resolution as grid mode
+  minColumns: 2,
+  maxColumns: 8,
+  itemBuilder: (context, photo, index) => PhotoTile(photo), // any height
+  onReorder: (oldIndex, newIndex) => ...,
+)
+```
+
+Masonry mode packs cells into whichever column is shortest so far
+("Pinterest-style"), so unlike grid mode there's no `childAspectRatio` —
+each cell keeps its own natural height. Column count resolves the same way
+as grid mode (`minColumnWidth`/`breakpoints`, clamped to
+`minColumns`/`maxColumns`). It always scrolls vertically and isn't lazy
+(every item is built up front to pack it), so it suits moderate item
+counts — prefer grid for very large datasets.
+
 ## All features
 
 | Feature | How |
 | --- | --- |
-| List *or* grid, same widget | `layout: DragListLayout.list` / `.grid` |
-| Responsive grid columns | `minColumnWidth` auto-fit, or explicit `GridBreakpoints` |
+| List, grid, *or* masonry, same widget | `layout: DragListLayout.list` / `.grid` / `.masonry` |
+| Responsive grid/masonry columns | `minColumnWidth` auto-fit, or explicit `GridBreakpoints` |
 | Cross-group drag (kanban) | `DragGroupScope` + `groupId` / `acceptGroups` |
 | Drag gesture per platform | auto-detected, override via `enableLongPressDrag` / `enableMouseDrag` |
 | Custom drag preview / placeholder | `dragPreviewBuilder` / `dragPlaceholderBuilder` |
 | Loading / empty states | `isLoading` + `loadingBuilder` / `emptyBuilder` (empty state stays a valid drop target) |
-| Large datasets | builder-based, lazy `ListView.builder`/`GridView.builder` |
+| Large datasets | builder-based, lazy `ListView.builder`/`GridView.builder` (list/grid; masonry isn't lazy) |
 | Auto-scroll while dragging | `autoScrollEdgeSize` / `autoScrollMaxVelocity` |
 
 ## `GridBreakpoints`
@@ -185,12 +208,11 @@ jump while dragging.
 
 ## Example app
 
-See `example/` for a runnable app with list and grid tabs, backed by demo
-data (`example/lib/main.dart`, `example/lib/demo_data.dart`).
+See `example/` for a runnable app with list, grid, and masonry tabs, backed
+by demo data (`example/lib/main.dart`, `example/lib/demo_data.dart`).
 
 ## Non-goals (v1)
 
-- No masonry/staggered grid — fixed aspect-ratio cells only.
 - No persistence/state management — the package only reports intent via
   callbacks; you own the source-of-truth list mutation.
 

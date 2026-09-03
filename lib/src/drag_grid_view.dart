@@ -9,6 +9,7 @@ import 'drag_grid_delegate.dart';
 import 'drag_item.dart';
 import 'grid_breakpoints.dart';
 import 'grid_state_widgets.dart';
+import 'masonry_grid.dart';
 import 'reorder_reflow.dart';
 
 /// Keeps [child]'s Element alive (exempt from the lazy list/grid's normal
@@ -66,13 +67,60 @@ class _KeepDraggedAliveState extends State<_KeepDraggedAlive>
   }
 }
 
+/// Reports [child]'s laid-out size to [onSize] after every frame in which
+/// it changes, without needing a `GlobalKey` or forcing an ancestor
+/// rebuild — [onSize] is expected to feed a [ValueNotifier] that a
+/// [ValueListenableBuilder] elsewhere listens to.
+///
+/// Used to give `DragGridList`'s default drag placeholder/preview a real
+/// fallback size when the slot itself can't report a bounded one (e.g.
+/// masonry's cells, or any unbounded-height list item) — see
+/// `_DragGridListState._measuredSizeNotifierFor`'s doc for why that
+/// matters.
+class _MeasureSize extends StatefulWidget {
+  const _MeasureSize({required this.onSize, required this.child});
+
+  final ValueChanged<Size> onSize;
+  final Widget child;
+
+  @override
+  State<_MeasureSize> createState() => _MeasureSizeState();
+}
+
+class _MeasureSizeState extends State<_MeasureSize> {
+  Size? _lastReported;
+
+  @override
+  Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final box = context.findRenderObject();
+      if (box is RenderBox && box.hasSize && box.size != _lastReported) {
+        _lastReported = box.size;
+        widget.onSize(box.size);
+      }
+    });
+    return widget.child;
+  }
+}
+
 /// Which axis arrangement a [DragGridList] renders as.
 enum DragListLayout {
   /// Single-axis reorderable list.
   list,
 
-  /// Responsive, multi-column reorderable grid.
+  /// Responsive, multi-column reorderable grid. Fixed-size cells
+  /// ([childAspectRatio]), lockstep rows.
   grid,
+
+  /// Responsive, multi-column reorderable masonry ("Pinterest-style")
+  /// layout. Cells size to their natural (intrinsic) height and pack into
+  /// whichever column is shortest so far — no [childAspectRatio], no gaps
+  /// from uneven row heights. Always scrolls vertically regardless of
+  /// [DragGridList.scrollDirection], and isn't lazy (every item is built
+  /// and laid out up front, per [MasonryGrid]) — prefer [grid] for very
+  /// large datasets.
+  masonry,
 }
 
 /// Shares one [DragController] between sibling [DragGridList] widgets so
@@ -165,7 +213,8 @@ class _DragControllerScope extends InheritedNotifier<DragController> {
 }
 
 /// One widget covering: plain reorderable list, responsive reorderable
-/// grid, and drag-and-drop between groups/lists.
+/// grid, responsive reorderable masonry, and drag-and-drop between
+/// groups/lists.
 ///
 /// Long-press drag on mobile, mouse drag on desktop/web (auto-detected,
 /// fully overridable). Lazy/builder-based for large datasets.
@@ -224,35 +273,37 @@ class DragGridList<T> extends StatefulWidget {
   /// Scroll axis. Grid mode scrolls along the cross axis of [breakpoints].
   final Axis scrollDirection;
 
-  /// Minimum column width used to auto-derive column count in grid mode,
-  /// when [breakpoints] isn't supplied.
+  /// Minimum column width used to auto-derive column count in grid/masonry
+  /// mode, when [breakpoints] isn't supplied.
   final double? minColumnWidth;
 
-  /// Lower clamp on the resolved grid column count.
+  /// Lower clamp on the resolved grid/masonry column count.
   final int minColumns;
 
-  /// Upper clamp on the resolved grid column count.
+  /// Upper clamp on the resolved grid/masonry column count.
   final int maxColumns;
 
   /// Explicit breakpoint tiers overriding [minColumnWidth] auto-fit, in
-  /// grid mode.
+  /// grid/masonry mode.
   final GridBreakpoints? breakpoints;
 
   /// Spacing between items along the main axis (list mode) or cross axis
-  /// (grid mode columns).
+  /// (grid/masonry mode columns).
   final double itemSpacing;
 
-  /// Spacing between grid rows. Unused in list mode.
+  /// Spacing between grid rows, or between stacked items within a masonry
+  /// column. Unused in list mode.
   final double rowSpacing;
 
-  /// Padding around the whole list/grid.
+  /// Padding around the whole list/grid/masonry.
   final EdgeInsetsGeometry padding;
 
   /// Fixed item size along [scrollDirection], list mode only. `null` sizes
   /// items intrinsically.
   final double? itemExtent;
 
-  /// Cell aspect ratio, grid mode only.
+  /// Cell aspect ratio, grid mode only. Ignored in masonry mode, where
+  /// cells keep their natural height.
   final double childAspectRatio;
 
   /// Master switch for all drag interactions on this list.
@@ -357,6 +408,19 @@ class _DragGridListState<T> extends State<DragGridList<T>>
   GlobalKey _reflowKeyFor(Object id) =>
       _reflowKeys.putIfAbsent(id, GlobalKey.new);
 
+  // Per-item-identity last-known content size, kept live by _MeasureSize so
+  // the default placeholder/preview can fall back to it when the slot
+  // itself can't report a bounded size (masonry's cells, and any
+  // unbounded-height list item, get an unconstrained-height LayoutBuilder
+  // reading, since there's no fixed row/aspect-ratio to measure against).
+  // Without this, the placeholder collapses to 0×0 the instant a drag
+  // starts, which in masonry mode shrinks that item's column and reflows
+  // every item below it for the drag's whole duration.
+  final Map<Object, ValueNotifier<Size?>> _measuredSizes = {};
+
+  ValueNotifier<Size?> _measuredSizeNotifierFor(Object id) =>
+      _measuredSizes.putIfAbsent(id, () => ValueNotifier(null));
+
   // Per-item "is this the one being dragged" flags backing
   // _KeepDraggedAlive, so an item's Element survives being auto-scrolled
   // off-screen mid-drag.
@@ -407,6 +471,9 @@ class _DragGridListState<T> extends State<DragGridList<T>>
     _ownedController?.dispose();
     for (final flag in _activeDragFlags.values) {
       flag.dispose();
+    }
+    for (final notifier in _measuredSizes.values) {
+      notifier.dispose();
     }
     super.dispose();
   }
@@ -544,7 +611,11 @@ class _DragGridListState<T> extends State<DragGridList<T>>
       sourceIndex: index,
     );
     final erasedItem = dragItem.cast<Object?>();
-    final content = widget.itemBuilder(context, item, index);
+    final sizeNotifier = _measuredSizeNotifierFor(id);
+    final content = _MeasureSize(
+      onSize: (size) => sizeNotifier.value = size,
+      child: widget.itemBuilder(context, item, index),
+    );
 
     if (!widget.enableReorder) {
       return KeyedSubtree(key: itemKey, child: content);
@@ -578,16 +649,30 @@ class _DragGridListState<T> extends State<DragGridList<T>>
             ? constraints.maxHeight
             : null;
 
-        final placeholder =
-            widget.dragPlaceholderBuilder?.call(context, item) ??
-            DefaultDragPlaceholder(width: slotWidth, height: slotHeight);
-        final preview =
-            widget.dragPreviewBuilder?.call(context, item) ??
-            DefaultDragPreview(
-              width: slotWidth,
-              height: slotHeight,
-              child: content,
-            );
+        // Falls back to the content's last laid-out size when the slot
+        // can't report a bounded one (see _MeasureSize's doc). Wrapped in
+        // ValueListenableBuilder rather than read once here, since that
+        // size usually isn't known until the frame *after* this builder
+        // first runs.
+        final placeholder = widget.dragPlaceholderBuilder != null
+            ? widget.dragPlaceholderBuilder!(context, item)
+            : ValueListenableBuilder<Size?>(
+                valueListenable: sizeNotifier,
+                builder: (context, measuredSize, _) => DefaultDragPlaceholder(
+                  width: slotWidth ?? measuredSize?.width,
+                  height: slotHeight ?? measuredSize?.height,
+                ),
+              );
+        final preview = widget.dragPreviewBuilder != null
+            ? widget.dragPreviewBuilder!(context, item)
+            : ValueListenableBuilder<Size?>(
+                valueListenable: sizeNotifier,
+                builder: (context, measuredSize, _) => DefaultDragPreview(
+                  width: slotWidth ?? measuredSize?.width,
+                  height: slotHeight ?? measuredSize?.height,
+                  child: content,
+                ),
+              );
 
         final Widget draggableChild = _useMouseDrag
             ? Draggable<DragItem<Object?>>(
@@ -814,6 +899,39 @@ class _DragGridListState<T> extends State<DragGridList<T>>
     );
   }
 
+  Widget _buildMasonry(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = DragGridDelegate.columnCountForWidth(
+          width: constraints.maxWidth,
+          minColumnWidth: widget.minColumnWidth,
+          minColumns: widget.minColumns,
+          maxColumns: widget.maxColumns,
+          breakpoints: widget.breakpoints,
+          spacing: widget.itemSpacing,
+        );
+        return SingleChildScrollView(
+          padding: widget.padding,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              MasonryGrid(
+                crossAxisCount: columns,
+                mainAxisSpacing: widget.rowSpacing,
+                crossAxisSpacing: widget.itemSpacing,
+                children: [
+                  for (var i = 0; i < widget.items.length; i++)
+                    _buildSlot(context, i),
+                ],
+              ),
+              _buildTrailingDropZone(),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.isLoading) {
@@ -829,14 +947,24 @@ class _DragGridListState<T> extends State<DragGridList<T>>
         for (var i = 0; i < widget.items.length; i++) _idForIndex(i),
       };
       _reflowKeys.removeWhere((id, _) => !currentIds.contains(id));
+      _measuredSizes.removeWhere((id, notifier) {
+        final stale = !currentIds.contains(id);
+        if (stale) notifier.dispose();
+        return stale;
+      });
       _activeDragFlags.removeWhere((id, flag) {
         final stale = !currentIds.contains(id);
         if (stale) flag.dispose();
         return stale;
       });
     }
-    return widget.layout == DragListLayout.grid
-        ? _buildGrid(context)
-        : _buildList(context);
+    switch (widget.layout) {
+      case DragListLayout.grid:
+        return _buildGrid(context);
+      case DragListLayout.masonry:
+        return _buildMasonry(context);
+      case DragListLayout.list:
+        return _buildList(context);
+    }
   }
 }

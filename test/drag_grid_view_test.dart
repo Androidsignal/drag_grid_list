@@ -192,4 +192,86 @@ void main() {
       expect(delegate.crossAxisCount, 6);
     });
   });
+
+  group('DragGridList masonry mode', () {
+    testWidgets('renders items of different heights, tallest first in a column', (
+      tester,
+    ) async {
+      final heights = [40.0, 120.0, 40.0, 40.0];
+      await tester.pumpWidget(
+        _wrap(
+          DragGridList<int>.builder(
+            items: List.generate(4, (i) => i),
+            layout: DragListLayout.masonry,
+            minColumns: 2,
+            maxColumns: 2,
+            itemBuilder: (context, item, index) => SizedBox(
+              key: ValueKey(item),
+              height: heights[item],
+              child: Text('Item $item'),
+            ),
+          ),
+          width: 200,
+          height: 600,
+        ),
+      );
+
+      for (var i = 0; i < 4; i++) {
+        expect(find.text('Item $i'), findsOneWidget);
+      }
+
+      // Column 0 gets item 0 (tallest-so-far heuristic: both start at 0,
+      // item 0 goes to column 0), item 1 (120) goes to column 1 (both
+      // still tied at that point — column 0 already has height 40, so it
+      // goes to column 1), item 2 goes back to column 0 (shortest), item 3
+      // goes to column 0 again since column 1 is now tallest.
+      final pos0 = tester.getTopLeft(find.text('Item 0'));
+      final pos1 = tester.getTopLeft(find.text('Item 1'));
+      final pos2 = tester.getTopLeft(find.text('Item 2'));
+      final pos3 = tester.getTopLeft(find.text('Item 3'));
+
+      expect(pos1.dx, greaterThan(pos0.dx));
+      expect(pos2.dx, pos0.dx);
+      expect(pos2.dy, greaterThan(pos0.dy));
+      expect(pos3.dx, pos0.dx);
+      expect(pos3.dy, greaterThan(pos2.dy));
+    });
+
+    testWidgets(
+      'placeholder keeps the dragged item\'s real height instead of collapsing',
+      (tester) async {
+        await tester.pumpWidget(
+          _wrap(
+            DragGridList<int>.builder(
+              items: List.generate(4, (i) => i),
+              layout: DragListLayout.masonry,
+              minColumns: 2,
+              maxColumns: 2,
+              enableMouseDrag: true,
+              enableLongPressDrag: false,
+              keyOf: (item) => ValueKey(item),
+              itemBuilder: (context, item, index) =>
+                  SizedBox(height: 120, child: Text('Item $item')),
+            ),
+            width: 200,
+            height: 600,
+          ),
+        );
+
+        final startPos = tester.getCenter(find.text('Item 0'));
+        final gesture = await tester.startGesture(startPos);
+        await tester.pump(const Duration(milliseconds: 50));
+        await gesture.moveTo(startPos + const Offset(0, 40));
+        await tester.pump(const Duration(milliseconds: 50));
+
+        final placeholder = tester.widget<DefaultDragPlaceholder>(
+          find.byType(DefaultDragPlaceholder),
+        );
+        expect(placeholder.height, 120);
+
+        await gesture.up();
+        await tester.pumpAndSettle();
+      },
+    );
+  });
 }
