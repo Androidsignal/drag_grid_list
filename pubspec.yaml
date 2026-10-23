@@ -1,6 +1,6 @@
 name: drag_grid_list
 description: "A highly flexible Flutter widget for reorderable lists and responsive grids. Supports drag & drop, reordering, masonry layouts, and cross-group dragging (Kanban-style) with no external dependencies."
-version: 0.0.3
+version: 0.0.4
 homepage: https://github.com/Androidsignal/drag_grid_list
 repository: https://github.com/Androidsignal/drag_grid_list
 issue_tracker: https://github.com/Androidsignal/drag_grid_list/issues
