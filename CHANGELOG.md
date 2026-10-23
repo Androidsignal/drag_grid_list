@@ -18,6 +18,9 @@
   item is built and laid out up front to pack it) — prefer grid mode for
   very large datasets.
 
+* **Metadata Improvements**: Added screenshots, topics, and an improved package description to `pubspec.yaml` for better visibility on pub.dev.
+* **README Updates**: Added status badges (likes, points, popularity) and refined documentation.
+
 ## 0.0.2
 
 * Fix: dropping an item onto its immediate next neighbor was a no-op —

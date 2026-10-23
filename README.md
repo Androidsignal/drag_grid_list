@@ -2,6 +2,12 @@
 
 # drag_grid_list
 
+[![pub package](https://img.shields.io/pub/v/drag_grid_list.svg)](https://pub.dev/packages/drag_grid_list)
+[![likes](https://img.shields.io/pub/likes/drag_grid_list)](https://pub.dev/packages/drag_grid_list/score)
+[![points](https://img.shields.io/pub/points/drag_grid_list)](https://pub.dev/packages/drag_grid_list/score)
+[![popularity](https://img.shields.io/pub/popularity/drag_grid_list)](https://pub.dev/packages/drag_grid_list/score)
+[![License: MIT](https://img.shields.io/badge/license-MIT-purple.svg)](https://opensource.org/licenses/MIT)
+
 Reorderable list + responsive grid, drag & drop, reordering, and cross-group
 move — one widget, no external dependencies. Long-press drag on mobile,
 mouse drag on desktop/web (auto-detected, fully overridable). No layout math
